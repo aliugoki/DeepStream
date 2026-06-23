@@ -1,0 +1,3 @@
+[property]
+payload-type=0   # JSON
+msg2p-lib=/opt/nvidia/deepstream/deepstream/lib/libnvds_msgconv.so

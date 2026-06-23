@@ -1,0 +1,162 @@
+[pipeline]
+display=1
+num_sources = 1             # Number of input sources for the pipeline
+#muxer_width = 1280          # Width for nvstreammux output frames
+#muxer_height = 720          # Height for nvstreammux output frames
+muxer_batch_size = 1        # Batch size for nvstreammux. Should typically match num_sources.
+#rtsp_bitrate = 4000000      # Target bitrate for the H.264 encoder in bps (e.g., 4 Mbps).
+rec_threshold = 0.35
+enable_rtsp_streaming = true # Set to 'true' to enable the internal RTSP server.
+is_aarch64=0
+known_face_dir="/workspace/data/known_faces"
+save_feature=0
+save_feature_path="/workspace/data/features"
+rtsp_reconnect_interval = 10
+#sgie_input_width = 112  # Or whatever your ArcFace model actually expects
+#sgie_input_height = 112 
+
+[streammux]
+# GStreamer nvstreammux settings
+gpu_id = 0
+batch-size =1 
+width = 1280
+height = 720
+live-source = 1
+nvbuf-memory-type = 0
+batched-push-timeout = 40000
+
+
+[nvosd]
+process-mode=0
+display-text=1
+
+#[[sources]]
+#id = "IN"    
+#uri = "rtsp://admin:vision12345@39.61.39.238:556?transport=tcp"
+#type = "entrance"
+#num-retry = 5
+#rtsp-reconnect-interval-sec = 10
+#latency = 200
+
+
+#[[sources]]
+#id = "OUT"
+#uri = "rtsp://admin:Pakistan1122@192.168.10.172:554?transport=tcp"
+#type = "exit"
+#num-retry = 5
+#rtsp-reconnect-interval-sec = 10
+#latency = 200
+
+
+#[[sources]]
+#id = "IN"    
+#uri = "rtsp://admin:Hikvision12@46.152.125.242:554/cam/realmonitor?channel=3&subtype=0"
+#type = "entrance"
+#num-retry = 5
+#rtsp-reconnect-interval-sec = 10
+#latency = 200
+
+#[[sources]]
+#id = "OUT"
+#uri = "rtsp://127.0.0.1:9000/out"
+#type = "exit"
+#num-retry = 5
+#rtsp-reconnect-interval-sec = 10
+#latency = 200
+
+[[sources]]
+id = "cam1"
+#uri = "rtsp://admin:Pakistan1122@192.168.10.164:554?transport=tcp"
+uri = "rtsp://admin:Mindson786%40@43.251.255.36:554?transport=tcp"
+#rtsp://admin:Mindson786%40@43.251.255.36:554?transport=tcp
+type = "entrance"
+num-retry = 5
+rtsp-reconnect-interval-sec = 10
+latency = 200
+
+#[[sources]]
+#id = "OUT"
+#uri = "rtsp://admin:Admin123@192.168.1.2:554?transport=tcp"
+#type = "exit"
+#num-retry = 5
+#rtsp-reconnect-interval-sec = 10
+#latency = 200
+
+
+#[[sources]]
+#id = "cam3"
+#uri = "rtsp://admin:sbt12345@192.168.10.158:554?transport=tcp"
+#type = "class"
+
+#[[sources]]
+#id = "cam4"
+#uri = "rtsp://admin:sbt12345@192.168.10.158:554?transport=tcp"
+#type = "class"
+
+#[[sources]]
+#id = "cam5"
+#uri = "rtsp://admin:sbt12345@192.168.10.158:554?transport=tcp"
+#type = "class"
+
+#[[sources]]
+#id = "cam6"
+#uri = "rtsp://admin:sbt12345@192.168.10.158:554?transport=tcp"
+#type = "class"
+
+
+
+#[sources.cam2]
+#uri = "rtsp://admin:Admin123@192.168.1.28:554?transport=tcp"
+#type = "entrance"
+
+# ... and so on
+#cam0 = "rtsp://admin:Admin123@103.149.33.102:554?transport=tcp"
+#cam0 = "rtsp://admin:P%40kistan1122@192.168.10.158:554?transport=tcp"
+#cam0 = "rtsp://admin:sbt12345@192.168.10.158:554?transport=tcp"
+#cam1 = "rtsp://admin:Admin123@103.149.33.102:554?transport=tcp"
+#cam2 = "rtsp://admin:Admin123@103.149.33.102:556?transport=tcp"
+#cam3 = "rtsp://admin:Admin123@103.149.33.102:556?transport=tcp"
+#cam4 = "rtsp://admin:sbt12345@192.168.10.158:554?transport=tcp"
+
+
+
+[pgie]
+#config-file-path="config/config_retinaface.txt"
+config-file-path="/workspace/config/config_yolo.txt"
+
+[sgie]
+config-file-path="/workspace/config/config_arcface.txt"
+
+[tracker]
+config-file-path="/workspace/config/config_tracker_perf.txt"
+
+
+[tiler]
+width=1280
+height=720
+
+
+#[rtsp_server]
+#mount-point = "/mystream"
+##enable_rtsp_streaming = true
+#port = 8555
+#codec = "H264" # Or "H264"
+#udpsink-port = 5400 # This is the port the main pipeline will send to
+#udpsink-host = "127.0.0.1" # Use your system's IP if client is remote
+[rtsp_server]
+mount-point = "/mystream"
+enable_rtsp_streaming = false #enable_rtsp_streaming=false, so it won’t crash in the future if someone disables RTSP.
+port = 8555
+codec = "H264"
+udpsink-port = 5400
+udpsink-host = "127.0.0.1"
+
+
+#[rtsp_server]
+#enable_rtsp_streaming = true
+#port = 8555
+#codec = "H264"
+#udpsink-host = "127.0.0.1"
+#udpsink-ports = [5400, 5401, 5402, 5403]    # One UDP port per camera
+#ount-points = ["/cam0", "/cam1", "/cam2", "/cam3"]  # Separate RTSP mount for each camera
+

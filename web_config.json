@@ -1,0 +1,32 @@
+{
+  "sources": {
+    "entrance": {
+      "source_0": {
+        "uri": "rtsp://admin:Admin123@192.168.1.2:554?transport=tcp",
+        "name": "IN",
+        "type": "entrance"
+      }
+    },
+    "exit": {
+      "source_1": {
+        "uri": "rtsp://admin:Admin123@103.149.33.102:554?transport=tcp",
+        "name": "Out",
+        "type": "exit"
+      }
+    }
+  },
+  "pipeline": {
+    "known_face_dir": "/workspace/data/known_faces",
+    "save_feature": true,
+    "display": true,
+    "is_aarch64": false,
+    "enable_rtsp_streaming": false,
+    "save_feature_path": "saved_features"
+  },
+  "tracker": {
+    "config-file-path": "config/tracker_config.txt"
+  }
+}
+
+
+

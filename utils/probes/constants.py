@@ -1,0 +1,20 @@
+# utils/probe/constants.py
+# Recognition thresholds
+PGIE_CONFIDENCE_THRESHOLD = 0.6
+RECOGNITION_THRESHOLD = 0.4
+FEATURE_VECTOR_SIZE = 512
+
+# Attendance cooldowns & retention
+ATTENDANCE_COOLDOWN_SECONDS = 10
+GLOBAL_STATUS_COOLDOWN = 5
+FACE_SAVE_RETENTION_DAYS = 2
+FACE_SAVE_CLEAN_INTERVAL = 300  # seconds
+
+# Geometry for detection
+DETECTION_AREA = {'x1': 0, 'y1': 250, 'x2': 2500, 'y2': 2000}
+DETECTION_LINE = {'x1': 0, 'y1': 250, 'x2': 1920, 'y2': 250}
+
+# Display constraints
+MAX_DISPLAY_LABELS = 16
+MAX_DISPLAY_LINES = 16
+MAX_DISPLAY_RECTS = 16

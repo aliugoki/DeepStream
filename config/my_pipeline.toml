@@ -1,0 +1,102 @@
+[pipeline]
+display=1
+is_aarch64=0
+known_face_dir="/workspace/data/known_faces"
+save_feature=0
+save_feature_path="/workspace/data/known_faces"
+rtsp-reconnect-interval=10
+#enable_rtsp_streaming = true
+rec_threshold=0.35
+enable_rtsp_streaming = true
+#rtsp_port = 8554
+#rtsp_path = "/deepstream_output"
+rtsp_bitrate = 4000000 # 4 Mbps
+#enable_display_with_rtsp = true
+#batch-size=2
+
+rtsp_port = 8554
+rtsp_path = "/test"
+rtsp_encoder = "nvv4l2h264enc"
+[streammux]
+gpu_id=0
+batch-size=1
+width=1280
+height=720
+live-source=1
+nvbuf-memory-type = 0
+[nvvidconv_saver]
+gpu-id = 0
+
+[nvosd]
+process-mode=0
+display-text=1
+
+
+#sources.source0]
+#[source]
+#uri = "rtsp://admin:Admin123@103.149.33.102:558?transport=tcp"
+#name = "Camera 1"
+
+
+
+[source]
+#source0 = "rtsp://admin:Admin123@103.149.33.102:554?transport=tcp&latency=0&drop-on-latency=true&buffer-mode=auto&timeout=5000000"
+#'source0'= 'rtsp://admin:Admin123@103.149.33.102:554?transport=tcp&latency=0&drop-on-latency=true&buffer-mode=auto&timeout=5000000'
+#source0 = "rtsp://admin:sbt12345@192.168.10.3:554?transport=tcp"
+
+#source0 = "rtsp://admin:Vision1122%40@192.168.10.62:554?transport=tcp"
+#source0="rtsp://host.docker.internal:554/live"
+#source0 = "rtsp://localhost:8554/fixed"  # Use the transcoded stream
+#rtsp_transport = "tcp"
+
+
+#CHANGE FOR VIDEO STREAM WITH CAMERA NAME:
+"source_0" = {uri="rtsp://admin:Admin123@103.149.33.102:554?transport=tcp"}
+#"source_1" = {uri="rtsp://admin:Admin123@103.149.33.102:554?transport=tcp"}
+
+
+#codec="H264"
+#port="5400"
+#source1 = "rtsp://admin:Admin123@103.149.33.102:558?transport=tcp"
+#source2 = "rtsp://admin:Admin123@103.149.33.102:556?transport=tcp"
+#source0='rtsp://admin:Admin123@103.149.33.102:554?transport=tcp'
+#source0="rtsp://admin:Admin123@103.149.33.102:554"
+# Replace your RTSP URI with:
+#source0 = "rtsp://admin:Admin123@103.149.33.102:554?tcp&latency=100&buffer-mode=auto&drop-on-latency=true"
+#codec="H264"
+#drop_on_latency=1
+#source0="file:///workspace/office3.mp4"
+#ource3="file:///workspace/office3.mp4"
+#ource4="file:///workspace/office3.mp4"
+#source0="rtsp://admin:Admin123@103.149.33.102:554?transport=tcp&latency=0&drop-on-latency=true&buffer-mode=auto"
+#source0="file:///workspace/detection_recognition/data/media/friends_s1e1_cut.mp4"
+#source1="file:///opt/nvidia/deepstream/deepstream-6.3/sources/face-recognition-deepstream/data/media/friends_s1e1_whole.mp4"
+
+#rtsp-timeout=5000  # 5 second timeout
+#udp-reconnect=1
+#drop-on-latency=1
+#[pgie_person]
+#config-file-path="config/config_retinaface.txt"
+#config-file-path="/workspace/face_copy/config/new.txt"
+
+[pgie_face]
+#[pgie]
+#config-file-path="config/config_retinaface.txt"
+config-file-path="/workspace/config/config_yolo.txt"
+
+[antispoof]
+config-file-path="/workspace/config/antispoofing.txt"
+
+[sgie]
+config-file-path="/workspace/config/config_arcface.txt"
+
+[tracker]
+config-file-path="/workspace/config/config_tracker_perf.txt"
+
+[tiler]
+width=1280
+height=720
+
+[sink]
+qos=0
+sync=1
