@@ -160,3 +160,19 @@ udpsink-host = "127.0.0.1"
 #udpsink-ports = [5400, 5401, 5402, 5403]    # One UDP port per camera
 #ount-points = ["/cam0", "/cam1", "/cam2", "/cam3"]  # Separate RTSP mount for each camera
 
+
+# ── VisionTrack identity feed (ENTERPRISE pipeline only; main_udp.py ignores this) ──
+# Publishes recognized identities to VisionTrack's Redis stream
+# vt:face:identities:<tenant_id>. See VISIONTRACK_LINK.md. Stays OFF until you
+# fill the camera/tenant UUIDs from VisionTrack (cameras.id / tenants.id).
+# Fetch a ready-to-paste block with:  python3 tools/vt_uuids.py   (VT DB must be up)
+[visiontrack]
+enabled = false
+redis_url = "redis://localhost:6379/0"
+throttle_sec = 2.0
+# One [[visiontrack.cameras]] per [[sources]] entry, in the SAME order:
+#[[visiontrack.cameras]]
+#source_id = 0
+#camera_id = "<visiontrack cameras.id uuid>"
+#tenant_id = "<visiontrack tenants.id uuid>"
+
