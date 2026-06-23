@@ -71,14 +71,15 @@ arcface_engine  = "/workspace/models/arcface/arc1.engine"
   your existing per-source config keys. A camera blip reconnects on its own.
 - **Recoverable bus handler** — source errors are logged/counted and survived;
   only a fatal *core-element* error quits (so the supervisor can restart clean).
-- **Health + metrics endpoint** — `GET :8080/healthz` (200 healthy / 503 not)
-  and `:8080/metrics` (Prometheus: per-source frames, reconnects, errors,
+- **Health + metrics endpoint** — `GET :9108/healthz` (200 healthy / 503 not)
+  and `:9108/metrics` (Prometheus: per-source frames, reconnects, errors,
   seconds-since-frame, stale flag). Point your existing Grafana/Prometheus at it.
+  Port 9108 avoids the host's kafka-ui on :8080; override with `health_port`.
 - **Frame-flow watchdog** — logs any source silent beyond `stale_after_sec`.
 - **Process supervisor** — `deploy/deepstream-face.service` (systemd
   `Restart=always`) restarts the container on hard crash/OOM.
 
-Optional `[pipeline]` knobs: `health_port` (8080), `stale_after_sec` (20),
+Optional `[pipeline]` knobs: `health_port` (9108), `stale_after_sec` (20),
 `watchdog_interval_sec` (10).
 
 ## Must validate ON-DEVICE (no GPU in the build env)

@@ -4,7 +4,7 @@
 #   sudo cp deploy/deepstream-face.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now deepstream-face
 # Logs:   journalctl -u deepstream-face -f
-# Health: curl localhost:8080/healthz   (503 = unhealthy)
+# Health: curl localhost:9108/healthz   (503 = unhealthy)
 
 [Unit]
 Description=Enterprise DeepStream Face Recognition
@@ -20,7 +20,7 @@ StartLimitIntervalSec=60
 StartLimitBurst=5
 TimeoutStartSec=120
 
-# --gpus all + host networking so :8080 health and RTSP out are reachable.
+# --gpus all + host networking so :9108 health and RTSP out are reachable.
 # Adjust the image tag / mount to your environment.
 ExecStartPre=-/usr/bin/docker rm -f deepstream-face
 ExecStart=/usr/bin/docker run --rm --name deepstream-face \

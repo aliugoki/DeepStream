@@ -178,7 +178,7 @@ def main(cfg):
     # Health/metrics state shared across probe, bus handler, and watchdog.
     health = HealthState(cfg["sources"],
                          stale_after_sec=float(pcfg.get("stale_after_sec", 20)))
-    start_health_server(health, port=int(pcfg.get("health_port", 8080)))
+    start_health_server(health, port=int(pcfg.get("health_port", 9108)))
 
     # Recognition probe (after tracker, before tiler -> per-source frames).
     recognizer = EnterpriseRecognizer(embedder, gallery, track_mgr,

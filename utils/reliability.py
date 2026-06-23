@@ -186,7 +186,7 @@ def _prometheus_text(snap):
     return "\n".join(lines) + "\n"
 
 
-def start_health_server(health_state, port=8080):
+def start_health_server(health_state, port=9108):
     """Serve /healthz (200/503) and /metrics (Prometheus) on a daemon thread."""
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_):  # silence default access logging
