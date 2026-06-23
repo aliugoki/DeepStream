@@ -13,7 +13,7 @@ save_feature=0
 save_feature_path="/workspace/data/features"
 rtsp_reconnect_interval = 10
 #sgie_input_width = 112  # Or whatever your ArcFace model actually expects
-#sgie_input_height = 112 
+#sgie_input_height = 112
 
 [streammux]
 # GStreamer nvstreammux settings
@@ -67,20 +67,20 @@ display-text=1
 [[sources]]
 id = "cam1"
 #uri = "rtsp://admin:Pakistan1122@192.168.10.164:554?transport=tcp"
-uri = "rtsp://admin:Mindson786%40@43.251.255.36:554?transport=tcp"
+uri = "rtsp://admin:Admin123@192.168.1.28:554?transport=tcp"
 #rtsp://admin:Mindson786%40@43.251.255.36:554?transport=tcp
 type = "entrance"
 num-retry = 5
 rtsp-reconnect-interval-sec = 10
 latency = 200
 
-#[[sources]]
-#id = "OUT"
-#uri = "rtsp://admin:Admin123@192.168.1.2:554?transport=tcp"
-#type = "exit"
-#num-retry = 5
-#rtsp-reconnect-interval-sec = 10
-#latency = 200
+[[sources]]
+id = "OUT"
+uri = "rtsp://admin:Admin123@192.168.1.4:554?transport=tcp"
+type = "exit"
+num-retry = 5
+rtsp-reconnect-interval-sec = 10
+latency = 200
 
 
 #[[sources]]

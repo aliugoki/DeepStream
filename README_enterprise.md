@@ -82,6 +82,36 @@ arcface_engine  = "/workspace/models/arcface/arc1.engine"
 Optional `[pipeline]` knobs: `health_port` (9108), `stale_after_sec` (20),
 `watchdog_interval_sec` (10).
 
+## Alignment reconciliation (enrollment must match inference)
+
+Cosine matching only works if the gallery and the live probe embed faces
+through the **same** alignment. Today there are three different alignments in
+play, which is a real accuracy leak:
+
+| Where | Alignment | Embedder |
+|---|---|---|
+| Registration (`/home/meta/face_registration_system`) | **MediaPipe FaceMesh** | ArcFace TRT |
+| Legacy pipeline (`main_udp.py`) | **none** (raw crop) | ArcFace SGIE |
+| Enterprise (`main_enterprise.py` + `tools/enroll.py`) | **YOLO 5-pt Umeyama** | shared `arcface_embedder` |
+
+The enterprise path is internally consistent: `tools/enroll.py` and
+`utils/probe_enterprise.py` both call `utils/face_align.align_chip` on the YOLO
+landmarks and the same embedder, so gallery and live vectors are comparable.
+
+**To reconcile, standardize on the enterprise (YOLO-Umeyama) path:**
+1. Re-enroll the active company gallery from its source images with the
+   canonical tool: `python3 tools/enroll.py --all --embedder trt`
+   (writes aligned `<emp_id>.npy` + `gallery_meta.json`).
+2. Run inference with `main_enterprise.py` (which aligns the same way).
+3. Going forward, make **registration capture images only** and produce the
+   embedding via `tools/enroll.py` — don't let the registration system embed
+   with MediaPipe. (Or port `face_align`+`arcface_embedder` into the
+   registration system so it emits identical vectors.)
+
+Until then, a MediaPipe-aligned gallery vs YOLO-aligned live (or vs unaligned
+legacy) will measurably depress cosine scores — contributing to the
+soft/flickery recognition.
+
 ## Must validate ON-DEVICE (no GPU in the build env)
 
 1. `ArcFaceTRT` (`arc1.engine`) output cosine-matches `ArcFaceONNX` (> 0.99) for

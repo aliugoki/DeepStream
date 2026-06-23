@@ -91,6 +91,19 @@ TRACKED_OBJECTS = {}
 ATTENDANCE_COOLDOWN_SECONDS = 10
 RECOGNITION_THRESHOLD = 0.2
 
+# --- Per-track sticky identity (anti-flicker) ---
+# A known face that turns away / blurs no longer flips back to "Unknown":
+# once a tracker object_id has been confidently recognized as the same person
+# for STICKY_MIN_VOTES frames, that identity is committed to the track and kept
+# even on poor frames. Idle tracks are evicted after STICKY_TTL_SEC so state
+# stays bounded. Raise STICKY_MIN_VOTES if you ever see a wrong identity stick.
+from .recognition import TrackIdentityManager
+STICKY_MIN_VOTES = 3
+STICKY_TTL_SEC = 30.0
+_identity_tracker = TrackIdentityManager(
+    threshold=RECOGNITION_THRESHOLD, min_margin=0.0,
+    min_votes=STICKY_MIN_VOTES, ttl_seconds=STICKY_TTL_SEC)
+
 # --- Attendance Worker Function ---
 def attendance_worker(q):
     """
@@ -497,10 +510,18 @@ def sgie_feature_extract_probe(pad, info, user_data):
                         obj_meta, obj_meta.object_id, current_timestamp, frame_meta, batch_meta, display_name_to_use
                     )
 
+                    # Per-frame candidate (None on a turned/blurred/no-tensor face)...
+                    frame_match_id, frame_score = (None, -1.0)
                     if face_feature is not None and loaded_faces:
-                        best_match_id, best_score = match_faces(face_feature, loaded_faces)
+                        frame_match_id, frame_score = match_faces(face_feature, loaded_faces)
+                    accepted_id = frame_match_id if (frame_match_id and frame_score >= RECOGNITION_THRESHOLD) else None
+                    # ...but display + attendance use the STICKY per-track identity,
+                    # so a recognized person who turns away stays recognized.
+                    best_match_id = _identity_tracker.observe(
+                        obj_meta.object_id, accepted_id, frame_score, 1.0)
 
-                        if best_match_id and best_score >= RECOGNITION_THRESHOLD:
+                    if best_match_id is not None:
+                        if True:
                             display_name_to_use = f"ID:{best_match_id} (Recognized)"
 
                             if is_in_detection_area(obj_meta):
@@ -542,10 +563,10 @@ def sgie_feature_extract_probe(pad, info, user_data):
                                     display_name_to_use = f"ID:{best_match_id} (Invalid Format)"
                             else:
                                 logger.info(f"Recognized person {best_match_id} not in detection area. Not logging attendance.")
-                    elif face_feature is None:
-                        display_name_to_use = "No Feature"
-                    else:
+                    elif not loaded_faces:
                         display_name_to_use = "No Known Faces"
+                    else:
+                        display_name_to_use = "Unknown"
 
                     display_name_on_frame(obj_meta, frame_meta, batch_meta, display_name_to_use)
 

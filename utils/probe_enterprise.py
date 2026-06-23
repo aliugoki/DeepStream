@@ -69,7 +69,8 @@ class EnterpriseRecognizer:
     """Holds the gallery, embedder, and per-track identity state."""
 
     def __init__(self, embedder, gallery: Gallery, track_mgr: TrackIdentityManager,
-                 sources, attendance_queue, save_unknown_dir=None, health=None):
+                 sources, attendance_queue, save_unknown_dir=None, health=None,
+                 vt_publisher=None):
         self.embedder = embedder
         self.gallery = gallery
         self.tracks = track_mgr
@@ -77,6 +78,7 @@ class EnterpriseRecognizer:
         self.attendance_queue = attendance_queue
         self.save_unknown_dir = save_unknown_dir
         self.health = health
+        self.vt = vt_publisher  # optional VisionTrack identity publisher
 
     # -- main probe entrypoint -------------------------------------------------
     def probe(self, pad, info, _u):
@@ -165,12 +167,14 @@ class EnterpriseRecognizer:
         label = "Unknown"
         direction = check_line_crossing(obj, obj.object_id, now, frame_meta, batch_meta, label)
 
+        person_name = ""
         if committed_id is not None:
             label = f"ID:{committed_id}"
             if is_in_detection_area(obj):
                 emp_id = str(committed_id).strip()
                 first, last, db_emp, image = get_user_info(emp_id, COMPANY_ID)
                 if first or last or db_emp:
+                    person_name = f"{first} {last}".strip()
                     label = f"{first} {last} (Emp ID: {db_emp})"
                     check_type = {'entrance': 'in', 'exit': 'out'}.get(camera_type)
                     if check_type and hasattr(self.attendance_queue, 'put'):
@@ -182,6 +186,12 @@ class EnterpriseRecognizer:
                             "check_type": check_type, "camera_name": camera_name})
                 else:
                     label = f"ID:{committed_id} (No Info)"
+
+            # Feed the recognized identity to VisionTrack (dedicated stream).
+            if self.vt is not None:
+                r = obj.rect_params
+                self.vt.publish(frame_meta.source_id, committed_id, person_name,
+                                1.0, (r.left, r.top, r.width, r.height))
 
         display_name_on_frame(obj, frame_meta, batch_meta, label)
 

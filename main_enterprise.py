@@ -39,6 +39,7 @@ from utils.parser_cfg import (parse_args, set_property, set_tracker_properties,
 from utils.reliability import (create_resilient_source_bin, make_resilient_bus_call,
                                HealthState, start_health_server, start_watchdog)
 from utils.recognition import Gallery, TrackIdentityManager
+from utils.visiontrack_publisher import from_config as vt_from_config
 from utils.arcface_embedder import make_embedder
 from utils.probe_enterprise import (EnterpriseRecognizer, attach_enterprise_probe,
                                     attendance_worker)
@@ -180,9 +181,15 @@ def main(cfg):
                          stale_after_sec=float(pcfg.get("stale_after_sec", 20)))
     start_health_server(health, port=int(pcfg.get("health_port", 9108)))
 
+    # Optional: publish recognized identities to VisionTrack (dedicated stream).
+    vt_publisher = vt_from_config(cfg)
+    if vt_publisher:
+        logger.info("VisionTrack identity publishing enabled.")
+
     # Recognition probe (after tracker, before tiler -> per-source frames).
     recognizer = EnterpriseRecognizer(embedder, gallery, track_mgr,
-                                      cfg["sources"], attendance_q, health=health)
+                                      cfg["sources"], attendance_q, health=health,
+                                      vt_publisher=vt_publisher)
     attach_enterprise_probe(caps_rgba, recognizer)
     pgie.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER,
                                          pgie_src_filter_probe, None)
