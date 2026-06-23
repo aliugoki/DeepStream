@@ -66,12 +66,16 @@ Deploy (in the VisionTrack backend container/venv):
 alembic upgrade head        # creates person_identities (now head 0017)
 # restart the backend → the face-identity consumer auto-starts per tenant
 ```
-Not yet done (left for you, optional): join `person_identities` into the
-persons / live-wall API responses so the dashboard renders the employee name on
-the tracked body. The data is captured; this is just the read/UI surface.
+- **API/UI surface** (done) — `GET /persons` and `GET /persons/{id}` now return
+  a `face_identity` object (`emp_id, name, confidence, votes, last_labeled_at`)
+  — the strongest label per person, batched to avoid N+1. Files:
+  `backend/app/modules/persons/{schemas,service,router}.py`.
 
-NOT committed — review the diff in the visiontrack repo first; it was not
-runtime-tested against the live stack here (no DB/Redis), only compile-checked.
+Committed on branch **`face-identity-link`** (the VisionTrack project was not
+under git; this is its initial import + the feature, commit on that branch).
+Review the 8 feature files listed in the commit message. It was compile-checked
+only — not runtime-tested against the live stack here (no DB/Redis). Run
+`alembic upgrade head` + restart the backend to activate.
 
 ## Recommended alternative (higher fidelity, more work)
 Run face recognition **inside** VisionTrack's `ai-worker-ds` as a face SGIE on
