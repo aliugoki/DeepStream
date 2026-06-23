@@ -40,24 +40,38 @@ It is safe: if Redis is down or a source is unmapped, publishing is a no-op —
 the pipeline never blocks. Only the **enterprise** pipeline publishes (the probe
 has the bbox + committed identity).
 
-## VisionTrack side (to add there — spec, not yet implemented)
-VisionTrack's `persons` has no identity column, so add an association rather
-than mutating ReID clustering:
+## VisionTrack side — IMPLEMENTED (in /home/meta/visiontrack/visiontrack)
+Added (mirrors the existing embedding-consumer conventions; keeps ReID
+untouched — face identity is a pure overlay):
 
-1. **Migration** — a `person_identities` table (or nullable cols on `persons`):
-   `person_id (FK), tenant_id, emp_id, name, source='face', confidence,
-   first_labeled_at, last_labeled_at`. Keeps face identity separate from ReID.
-2. **Consumer** — mirror `backend/app/modules/persons/consumer.py`: an
-   `xreadgroup` loop on `vt:face:identities:<tenant_id>` per tenant.
-3. **Correlation** — for each identity event, find the active track on
-   `camera_id` whose latest `track_points.bbox` overlaps the event `bbox` at
-   `captured_at_ms` (IoU over a small time window); resolve its `person_id`;
-   upsert `person_identities`. Use a vote/decay so a single bad correlation
-   doesn't relabel a person.
-4. **API/UI** — join `person_identities` in the persons/live-wall responses so
-   the dashboard shows the employee name on the tracked body.
+- **Migration** `backend/alembic/versions/0017_face_identities.py` — new
+  `person_identities` table (`tenant_id, person_id?, track_id?, camera_id,
+  emp_id, name, source, confidence, votes, first/last_labeled_at`; unique
+  `(tenant_id, person_id, emp_id)`). down_revision `0016_global_tracks`.
+- **Model** `PersonIdentity` in `backend/app/modules/persons/models.py`
+  (auto-registered via `app/core/models.py` -> persons).
+- **Consumer** `backend/app/modules/persons/face_identity_consumer.py` —
+  per-tenant `xreadgroup` on `vt:face:identities:<tenant_id>`, correlates each
+  event to a track by camera + bbox-IoU + time window, resolves `person_id`,
+  and upserts `person_identities` with running confidence + vote count (one bad
+  correlation can't flip a label).
+- **Config** `backend/app/core/config.py` — `FACE_IDENTITY_ENABLED`,
+  `FACE_IDENTITY_STREAM_PREFIX`, `FACE_ID_CORRELATION_WINDOW_MS`,
+  `FACE_ID_MIN_IOU`, `FACE_ID_CANDIDATE_LIMIT`.
+- **Lifespan** `backend/app/main.py` — consumer started/stopped alongside the
+  others, gated by `FACE_IDENTITY_ENABLED`.
 
-This keeps ReID matching untouched and makes the face identity an overlay.
+Deploy (in the VisionTrack backend container/venv):
+```bash
+alembic upgrade head        # creates person_identities (now head 0017)
+# restart the backend → the face-identity consumer auto-starts per tenant
+```
+Not yet done (left for you, optional): join `person_identities` into the
+persons / live-wall API responses so the dashboard renders the employee name on
+the tracked body. The data is captured; this is just the read/UI surface.
+
+NOT committed — review the diff in the visiontrack repo first; it was not
+runtime-tested against the live stack here (no DB/Redis), only compile-checked.
 
 ## Recommended alternative (higher fidelity, more work)
 Run face recognition **inside** VisionTrack's `ai-worker-ds` as a face SGIE on
