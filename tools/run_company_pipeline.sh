@@ -37,6 +37,10 @@ docker run -d --name "deepstream-$USER" --restart always --runtime nvidia --netw
   -v "/home/meta/deploy/test/data/company_images/$FOLDER:/workspace/data/known_faces" \
   -v "$DS/config/companies/$USER.toml:/workspace/config/config_pipeline.toml" \
   -w /workspace "$IMG" \
-  bash -c "pip install -q --no-cache-dir requests pyds psycopg2-binary toml opencv-python-headless cuda-python && python3 main_enterprise.py"
+  bash /workspace/tools/pipeline_entry.sh
+  # NB: invoked as a script-file path, NOT `bash -c "..."`. The DeepStream image
+  # entrypoint word-splits an unquoted $@, which silently breaks a multi-word -c
+  # string (pip prints usage, exits 0, main_enterprise.py never runs). See
+  # tools/pipeline_entry.sh.
 
 echo "Started deepstream-$USER. Logs: docker logs -f deepstream-$USER"
