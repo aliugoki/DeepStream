@@ -1,0 +1,44 @@
+# systemd unit for the host-side pipeline control agent.
+# Polls the FaceTrack dashboard for start/stop/restart jobs, executes them with
+# docker, and pushes a container + GPU heartbeat so the Pipeline control panel
+# shows live state. This is the ONLY component that runs docker on behalf of the
+# web app (the dashboard never touches the docker socket).
+#
+# Install:
+#   sudo cp deploy/pipeline-agent.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now pipeline-agent
+# Logs:    journalctl -u pipeline-agent -f
+# Status:  systemctl status pipeline-agent
+#
+# Runs as root so it can reach docker + nvidia-smi. To run as the `meta` user
+# instead, add `User=meta` below and ensure meta is in the `docker` group
+# (sudo usermod -aG docker meta && re-login).
+
+[Unit]
+Description=FaceTrack Pipeline Control Agent
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+# Don't hammer forever if it crash-loops; surface it in the journal instead.
+# (These belong in [Unit] — systemd ignores them under [Service].)
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=/home/meta/deploy/deepstream
+
+# AGENT_TOKEN (and DASHBOARD_URL if set) come from the dashboard's .env so the
+# token always matches the backend. Override DASHBOARD_URL here if the dashboard
+# is not on localhost:5002.
+EnvironmentFile=/home/meta/deploy/attendance-system/backend/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=DASHBOARD_URL=http://localhost:5002
+
+ExecStart=/usr/bin/python3 /home/meta/deploy/deepstream/tools/pipeline_agent.py
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
