@@ -154,7 +154,7 @@ class EnterpriseRecognizer:
                 committed = self.tracks.observe(obj.object_id, None, -1.0, -1.0)
 
             self._handle_object(obj, frame_meta, batch_meta, now, today,
-                                 camera_name, camera_type, st, committed)
+                                 camera_name, camera_type, st, committed, frame_bgr)
 
         elapsed = (now - st['last_global_status']['timestamp']).total_seconds()
         if elapsed > GLOBAL_STATUS_DISPLAY_COOLDOWN_SECONDS:
@@ -162,8 +162,27 @@ class EnterpriseRecognizer:
         display_global_status(frame_meta, batch_meta, st['last_global_status']['status'])
         display_daily_counts(frame_meta, batch_meta, st['in_count'], st['out_count'], camera_type)
 
+    @staticmethod
+    def _snapshot_b64(frame_bgr, obj):
+        """Crop the recognized face from the frame and return a base64 JPEG."""
+        try:
+            if frame_bgr is None:
+                return None
+            import cv2, base64
+            r = obj.rect_params
+            h, w = frame_bgr.shape[:2]
+            x1, y1 = max(0, int(r.left)), max(0, int(r.top))
+            x2, y2 = min(w, int(r.left + r.width)), min(h, int(r.top + r.height))
+            if x2 <= x1 or y2 <= y1:
+                return None
+            crop = frame_bgr[y1:y2, x1:x2]
+            ok, buf = cv2.imencode(".jpg", crop, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            return base64.b64encode(buf).decode() if ok else None
+        except Exception:
+            return None
+
     def _handle_object(self, obj, frame_meta, batch_meta, now, today,
-                       camera_name, camera_type, st, committed_id):
+                       camera_name, camera_type, st, committed_id, frame_bgr=None):
         label = "Unknown"
         direction = check_line_crossing(obj, obj.object_id, now, frame_meta, batch_meta, label)
 
@@ -183,7 +202,8 @@ class EnterpriseRecognizer:
                             "first_name": first, "last_name": last, "image_url": image,
                             "attendance_date": today.strftime("%d-%m-%Y"),
                             "attendance_time": now.strftime("%H:%M:%S"),
-                            "check_type": check_type, "camera_name": camera_name})
+                            "check_type": check_type, "camera_name": camera_name,
+                            "image_b64": self._snapshot_b64(frame_bgr, obj)})
                 else:
                     label = f"ID:{committed_id} (No Info)"
 

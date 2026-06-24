@@ -195,7 +195,7 @@ def get_user_info(emp_id, company_id):
 
 def log_attendance(emp_id, company_id, first_name=None, last_name=None,
                    attendance_date=None, attendance_time=None, check_type='in',
-                   image_url=None, camera_name="Entrance"):
+                   image_url=None, camera_name="Entrance", image_b64=None):
     now_ts = time.time()
     if emp_id in _last_processed and (now_ts - _last_processed[emp_id] < THROTTLE_SEC):
         return False
@@ -236,7 +236,8 @@ def log_attendance(emp_id, company_id, first_name=None, last_name=None,
                    "first_name": db_first, "last_name": db_last,
                    "check_type": final_type, "check_in_id": parent_id,
                    "attendance_date": date_obj.isoformat(),
-                   "attendance_time": time_obj.isoformat(), "image_url": db_image}
+                   "attendance_time": time_obj.isoformat(), "image_url": db_image,
+                   "image_b64": image_b64}  # live snapshot (proof-of-presence)
         ok, resp = send_to_webhook(payload)
         if ok:
             mark_attendance_sent(new_id, resp)

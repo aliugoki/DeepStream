@@ -51,3 +51,6 @@ logs/
 # ===== Vendored SDK (large; track separately) =====
 deepstream_python_apps/
 deepstream/
+
+# generated per-company pipeline configs (may contain camera creds)
+config/companies/
