@@ -1,0 +1,36 @@
+# systemd unit for the enterprise face-recognition pipeline.
+# Runs the DeepStream container and auto-restarts on crash/OOM/exit.
+# Install:
+#   sudo cp deploy/deepstream-face.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now deepstream-face
+# Logs:   journalctl -u deepstream-face -f
+# Health: curl localhost:9108/healthz   (503 = unhealthy)
+
+[Unit]
+Description=Enterprise DeepStream Face Recognition
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Restart=always
+RestartSec=5
+# Give up only if it crash-loops 5 times within 60s (then alert via journal).
+StartLimitIntervalSec=60
+StartLimitBurst=5
+TimeoutStartSec=120
+
+# --gpus all + host networking so :9108 health and RTSP out are reachable.
+# Adjust the image tag / mount to your environment.
+ExecStartPre=-/usr/bin/docker rm -f deepstream-face
+ExecStart=/usr/bin/docker run --rm --name deepstream-face \
+    --gpus all --network host --ipc=host \
+    -v /home/meta/deploy/deepstream:/workspace \
+    -w /workspace \
+    -e DB_HOST -e DB_PASSWORD -e WEBHOOK_URL -e WEBHOOK_TOKEN -e COMPANY_ID \
+    nvcr.io/nvidia/deepstream:7.1-gc-triton-devel \
+    python3 main_enterprise.py
+ExecStop=/usr/bin/docker stop deepstream-face
+
+[Install]
+WantedBy=multi-user.target

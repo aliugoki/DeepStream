@@ -1,0 +1,69 @@
+# ===== Secrets / config (NEVER commit) =====
+.env
+*.env
+!.env.example
+config/certs/
+*.pem
+*.key
+
+# ===== PII: face images, embeddings, captures =====
+data/
+data_known_faces/
+recognized_faces/
+*.npy
+
+# ===== Crash dumps (~GB each) =====
+core
+core.*
+
+# ===== Model artifacts (use Git LFS or a model registry) =====
+*.engine
+*.onnx
+*.so
+*.o
+*.trt
+*.wts
+*.caffemodel
+models/
+
+# ===== Databases / archives =====
+*.db
+*.sqlite
+*.sqlite3
+*.zip
+*.tar
+*.tar.gz
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# ===== Logs / scratch =====
+*.log
+logs/
+*.tmp
+
+# ===== Vendored SDK (large; track separately) =====
+deepstream_python_apps/
+deepstream/
+
+# generated per-company pipeline configs (may contain camera creds)
+config/companies/
+
+# ===== Secret-bearing configs (use *.example.toml) =====
+config/*.toml
+config/config.ini
+!config/*.example.toml
+# Legacy DB modules with embedded secrets (superseded by db_service.py)
+utils/posgres_service.py
+utils/posgres_services.py
+utils/posgres_redis.py
+utils/non_blocking_postgres/
+
+# Camera config with live RTSP credentials
+web_config.json
