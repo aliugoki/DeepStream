@@ -11,13 +11,14 @@ Description=Enterprise DeepStream Face Recognition
 After=docker.service network-online.target
 Requires=docker.service
 Wants=network-online.target
+# Give up only if it crash-loops 5 times within 60s (then alert via journal).
+# (These belong in [Unit] — systemd ignores them under [Service].)
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Restart=always
 RestartSec=5
-# Give up only if it crash-loops 5 times within 60s (then alert via journal).
-StartLimitIntervalSec=60
-StartLimitBurst=5
 TimeoutStartSec=120
 
 # --gpus all + host networking so :9108 health and RTSP out are reachable.
