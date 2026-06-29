@@ -51,8 +51,26 @@ def main():
     cfg["pipeline"]["muxer_batch_size"] = max(len(cams), 1)
     cfg["pipeline"]["known_face_dir"] = "/workspace/data/known_faces"
     cfg["pipeline"]["health_port"] = 9108 + args.index
+    # Local display: render the annotated output in a window on the host's
+    # monitor. The launcher sets PIPELINE_DISPLAY=0 when no X server is reachable
+    # so the pipeline falls back to fakesink instead of crashing on nveglglessink.
+    cfg["pipeline"]["display"] = int(os.environ.get("PIPELINE_DISPLAY", "1"))
     cfg.setdefault("streammux", {})["batch-size"] = max(len(cams), 1)
-    cfg.setdefault("rtsp_server", {})["port"] = 8555 + args.index
+
+    # One annotated RTSP mount per camera: /cam0, /cam1, … on this company's
+    # RTSP port (8555+index). MediaMTX pulls each into a "{username}_cam{i}"
+    # path for browser HLS/WebRTC (see tools/gen_mediamtx_paths.py). UDP ports
+    # are offset by index so concurrently-running company pipelines don't clash.
+    n = max(len(cams), 1)
+    rs = cfg.setdefault("rtsp_server", {})
+    rs["port"] = 8555 + args.index
+    rs["enable_rtsp_streaming"] = True
+    rs["codec"] = rs.get("codec", "H264")
+    rs["udpsink-host"] = "127.0.0.1"
+    rs["mount-points"] = [f"/cam{i}" for i in range(n)]
+    rs["udpsink-ports"] = [5400 + args.index * 16 + i for i in range(n)]
+    rs.pop("mount-point", None)               # remove the single-mount fallback
+    rs.pop("udpsink-port", None)
 
     cfg["sources"] = [{
         "id": c[0], "uri": c[2], "type": c[1] or "general",
@@ -68,8 +86,8 @@ def main():
     print(f"Wrote {out}")
     print(f"  company: {company_name}  cameras: {len(cams)}  "
           f"rtsp_port: {8555 + args.index}  health_port: {9108 + args.index}")
-    for c in cams:
-        print(f"   - {c[0]} ({c[1]}): {c[2]}")
+    for i, c in enumerate(cams):
+        print(f"   - cam{i} {c[0]} ({c[1]}): {c[2]}  ->  rtsp://127.0.0.1:{8555 + args.index}/cam{i}")
 
 
 if __name__ == "__main__":

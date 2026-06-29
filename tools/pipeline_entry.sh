@@ -12,5 +12,8 @@
 # --restart always. Passing a single script-file path survives the splitting.
 set -euo pipefail
 
-pip install -q --no-cache-dir requests pyds psycopg2-binary toml opencv-python-headless cuda-python
+# tensorrt==10.3.0 matches the image's TRT 10.3.0.26 C++ libs (TRT_VERSION) and
+# provides the python bindings the image does not ship; the 'trt' embedder
+# backend (utils/arcface_embedder.ArcFaceTRT) does `import tensorrt`.
+pip install -q --no-cache-dir requests pyds psycopg2-binary toml opencv-python-headless cuda-python tensorrt==10.3.0
 exec python3 main_enterprise.py
