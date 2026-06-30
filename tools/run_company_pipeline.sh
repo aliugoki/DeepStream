@@ -52,13 +52,16 @@ json.dump(d, open(p, "w"), indent=2)
 PY
 
 # 2) resolve company_id, gallery folder, api_key
-read -r CID FOLDER APIKEY < <(python3 - "$USER" <<'PY'
+# TAB-separated, not space: company_image_folder can contain spaces (e.g.
+# "Comet Sports"), which a default `read` would split into FOLDER+APIKEY —
+# mounting the wrong/empty gallery and corrupting the webhook api_key.
+IFS=$'\t' read -r CID FOLDER APIKEY < <(python3 - "$USER" <<'PY'
 import sys, os, psycopg2
 from dotenv import load_dotenv
 load_dotenv('/home/meta/deploy/attendance-system/backend/.env')
 c = psycopg2.connect(os.getenv('DATABASE_URL')); cur = c.cursor()
 cur.execute("SELECT company_id, company_image_folder, api_key FROM companies WHERE admin_username=%s", (sys.argv[1],))
-r = cur.fetchone(); print(r[0], r[1] or sys.argv[1], r[2]); c.close()
+r = cur.fetchone(); print(r[0], r[1] or sys.argv[1], r[2], sep='\t'); c.close()
 PY
 )
 
