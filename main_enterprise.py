@@ -203,9 +203,11 @@ def main(cfg):
         logger.info("VisionTrack identity publishing enabled.")
 
     # Recognition probe (after tracker, before tiler -> per-source frames).
+    smux = cfg.get("streammux", {})
+    muxer_wh = (int(smux.get("width", 1280)), int(smux.get("height", 720)))
     recognizer = EnterpriseRecognizer(embedder, gallery, track_mgr,
                                       cfg["sources"], attendance_q, health=health,
-                                      vt_publisher=vt_publisher)
+                                      vt_publisher=vt_publisher, muxer_wh=muxer_wh)
     attach_enterprise_probe(caps_rgba, recognizer)
     pgie.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER,
                                          pgie_src_filter_probe, None)

@@ -14,6 +14,7 @@ import os
 import sys
 import argparse
 
+import json
 import toml
 import psycopg2
 from dotenv import load_dotenv
@@ -36,7 +37,7 @@ def main():
     if not row:
         sys.exit(f"No company with admin_username='{args.username}'")
     company_id, company_name = str(row[0]), row[1]
-    cur.execute("""SELECT name, type, rtsp_url FROM cameras
+    cur.execute("""SELECT name, type, rtsp_url, detection_area FROM cameras
                    WHERE company_id=%s AND enabled=TRUE AND rtsp_url IS NOT NULL AND rtsp_url<>''
                    ORDER BY name""", (company_id,))
     cams = cur.fetchall()
@@ -84,10 +85,27 @@ def main():
     rs["mount-point"] = rs["mount-points"][0]
     rs["udpsink-port"] = rs["udpsink-ports"][0]
 
-    cfg["sources"] = [{
-        "id": c[0], "uri": c[2], "type": c[1] or "general",
-        "num-retry": 5, "rtsp-reconnect-interval-sec": 10, "latency": 200,
-    } for c in cams]
+    def _area(c):
+        """Per-camera detection zone: a polygon of [x,y] points normalized 0..1,
+        stored as a JSON string in cameras.detection_area. Empty -> whole frame."""
+        raw = c[3] if len(c) > 3 else None
+        if not raw:
+            return None
+        try:
+            pts = raw if isinstance(raw, list) else json.loads(raw)
+            pts = [[float(x), float(y)] for x, y in pts]
+            return pts if len(pts) >= 3 else None
+        except Exception:
+            return None
+
+    cfg["sources"] = []
+    for c in cams:
+        src = {"id": c[0], "uri": c[2], "type": c[1] or "general",
+               "num-retry": 5, "rtsp-reconnect-interval-sec": 10, "latency": 200}
+        area = _area(c)
+        if area:
+            src["detection_area"] = area
+        cfg["sources"].append(src)
 
     out_dir = os.path.join(BASE, "config", "companies")
     os.makedirs(out_dir, exist_ok=True)

@@ -65,12 +65,26 @@ def _read_rgba_frame(gst_buffer, frame_meta):
         return None
 
 
+def _point_in_poly(x, y, poly):
+    """Ray-casting point-in-polygon test. `poly` is a list of (px, py) points."""
+    inside = False
+    n = len(poly)
+    j = n - 1
+    for i in range(n):
+        xi, yi = poly[i]
+        xj, yj = poly[j]
+        if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / (yj - yi + 1e-9) + xi):
+            inside = not inside
+        j = i
+    return inside
+
+
 class EnterpriseRecognizer:
     """Holds the gallery, embedder, and per-track identity state."""
 
     def __init__(self, embedder, gallery: Gallery, track_mgr: TrackIdentityManager,
                  sources, attendance_queue, save_unknown_dir=None, health=None,
-                 vt_publisher=None):
+                 vt_publisher=None, muxer_wh=(1280, 720)):
         self.embedder = embedder
         self.gallery = gallery
         self.tracks = track_mgr
@@ -79,6 +93,16 @@ class EnterpriseRecognizer:
         self.save_unknown_dir = save_unknown_dir
         self.health = health
         self.vt = vt_publisher  # optional VisionTrack identity publisher
+        # Per-camera detection zones. Each source may carry `detection_area`: a
+        # polygon of [x, y] points normalized to 0..1 (drawn in the dashboard).
+        # Scaled here to muxer-frame pixels (object coords live in that space).
+        # Empty/missing -> None == whole frame (attendance triggers anywhere).
+        mw, mh = muxer_wh
+        self.areas = {}
+        for idx, s in enumerate(self.sources):
+            poly = s.get("detection_area") if isinstance(s, dict) else None
+            if poly and len(poly) >= 3:
+                self.areas[idx] = [(float(x) * mw, float(y) * mh) for x, y in poly]
 
     # -- main probe entrypoint -------------------------------------------------
     def probe(self, pad, info, _u):
@@ -119,7 +143,7 @@ class EnterpriseRecognizer:
             st.update(in_count=0, out_count=0, last_reset_date=today,
                       last_global_status={'status': 'Standby', 'timestamp': now})
 
-        draw_detection_area(frame_meta, batch_meta)
+        self._draw_area(frame_meta, batch_meta, source_id)
         draw_detection_line(frame_meta, batch_meta)
 
         # Collect faces needing recognition (skip already-committed tracks).
@@ -154,13 +178,51 @@ class EnterpriseRecognizer:
                 committed = self.tracks.observe(obj.object_id, None, -1.0, -1.0)
 
             self._handle_object(obj, frame_meta, batch_meta, now, today,
-                                 camera_name, camera_type, st, committed, frame_bgr)
+                                 camera_name, camera_type, st, committed, frame_bgr,
+                                 source_id)
 
         elapsed = (now - st['last_global_status']['timestamp']).total_seconds()
         if elapsed > GLOBAL_STATUS_DISPLAY_COOLDOWN_SECONDS:
             st['last_global_status']['status'] = 'Standby'
         display_global_status(frame_meta, batch_meta, st['last_global_status']['status'])
         display_daily_counts(frame_meta, batch_meta, st['in_count'], st['out_count'], camera_type)
+
+    def _in_area(self, obj, source_id):
+        """Is the object inside this camera's detection zone? No zone == whole frame."""
+        poly = self.areas.get(source_id)
+        if not poly:
+            return True
+        try:
+            r = obj.rect_params
+            cx = r.left + r.width / 2.0
+            cy = r.top + r.height / 2.0
+            return _point_in_poly(cx, cy, poly)
+        except Exception:
+            return True
+
+    def _draw_area(self, frame_meta, batch_meta, source_id):
+        """Outline this camera's detection polygon (green) on the annotated frame."""
+        poly = self.areas.get(source_id)
+        if not poly or len(poly) < 2:
+            return
+        try:
+            dmeta = pyds.nvds_acquire_display_meta_from_pool(batch_meta)
+            if not dmeta:
+                return
+            n = len(poly)
+            for i in range(n):
+                if dmeta.num_lines >= 16:
+                    break
+                x1, y1 = poly[i]
+                x2, y2 = poly[(i + 1) % n]
+                lp = dmeta.line_params[dmeta.num_lines]
+                lp.x1, lp.y1, lp.x2, lp.y2 = int(x1), int(y1), int(x2), int(y2)
+                lp.line_width = 3
+                lp.line_color.set(0.0, 1.0, 0.0, 0.8)
+                dmeta.num_lines += 1
+            pyds.nvds_add_display_meta_to_frame(frame_meta, dmeta)
+        except Exception:
+            log.exception("draw detection area")
 
     @staticmethod
     def _snapshot_b64(frame_bgr, obj):
@@ -182,14 +244,15 @@ class EnterpriseRecognizer:
             return None
 
     def _handle_object(self, obj, frame_meta, batch_meta, now, today,
-                       camera_name, camera_type, st, committed_id, frame_bgr=None):
+                       camera_name, camera_type, st, committed_id, frame_bgr=None,
+                       source_id=0):
         label = "Unknown"
         direction = check_line_crossing(obj, obj.object_id, now, frame_meta, batch_meta, label)
 
         person_name = ""
         if committed_id is not None:
             label = f"ID:{committed_id}"
-            if is_in_detection_area(obj):
+            if self._in_area(obj, source_id):
                 emp_id = str(committed_id).strip()
                 first, last, db_emp, image = get_user_info(emp_id, COMPANY_ID)
                 if first or last or db_emp:
