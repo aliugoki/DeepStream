@@ -46,7 +46,16 @@ def main():
               f"Add them in the dashboard Cameras page.")
 
     # Start from the existing config as a template (inherits model paths/sections).
-    cfg = toml.load(os.path.join(BASE, "config", "config_pipeline.toml"))
+    # Fall back to the committed .example if the live template is missing or empty
+    # (e.g. clobbered by a container mount) so we never generate a config with no
+    # [pipeline] section.
+    tmpl = os.path.join(BASE, "config", "config_pipeline.toml")
+    if not os.path.exists(tmpl) or os.path.getsize(tmpl) == 0:
+        tmpl = os.path.join(BASE, "config", "config_pipeline.example.toml")
+        print(f"WARNING: config_pipeline.toml missing/empty; using {os.path.basename(tmpl)}")
+    cfg = toml.load(tmpl)
+    if "pipeline" not in cfg:
+        sys.exit(f"Template {tmpl} has no [pipeline] section — cannot generate config.")
     cfg["pipeline"]["num_sources"] = max(len(cams), 1)
     cfg["pipeline"]["muxer_batch_size"] = max(len(cams), 1)
     cfg["pipeline"]["known_face_dir"] = "/workspace/data/known_faces"
@@ -69,8 +78,11 @@ def main():
     rs["udpsink-host"] = "127.0.0.1"
     rs["mount-points"] = [f"/cam{i}" for i in range(n)]
     rs["udpsink-ports"] = [5400 + args.index * 16 + i for i in range(n)]
-    rs.pop("mount-point", None)               # remove the single-mount fallback
-    rs.pop("udpsink-port", None)
+    # Keep the singular keys too: main_udp.add_udp_rtsp_branches reads the plural
+    # lists, but its `.get("...-ports", [int(rtsp_cfg["udpsink-port"])])` default
+    # is evaluated eagerly and KeyErrors if the singular keys are absent.
+    rs["mount-point"] = rs["mount-points"][0]
+    rs["udpsink-port"] = rs["udpsink-ports"][0]
 
     cfg["sources"] = [{
         "id": c[0], "uri": c[2], "type": c[1] or "general",

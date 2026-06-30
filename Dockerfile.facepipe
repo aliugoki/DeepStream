@@ -1,0 +1,16 @@
+# FaceTrack pipeline image: DeepStream 7.1 + the python deps the pipeline needs,
+# baked in so each company container starts in seconds instead of re-installing
+# ~1 GB of tensorrt/cuda-python from pypi.nvidia.com on every (re)start.
+#
+#   docker build -t deepstream-facepipe:latest -f Dockerfile.facepipe .
+#
+# Pins rationale (see tools/pipeline_entry.sh):
+#  - tensorrt==10.3.0  matches the image's TRT 10.3.0.26 C++ libs
+#  - cuda-python <13   CUDA 12.x runtime; the host driver (575, CUDA 12.9 max)
+#                      is too old for cuda-python 13 (needs driver >=580)
+FROM nvcr.io/nvidia/deepstream:7.1-gc-triton-devel
+
+RUN pip install --no-cache-dir \
+        requests pyds psycopg2-binary toml opencv-python-headless \
+        "cuda-python>=12.6,<13" tensorrt==10.3.0 \
+    && python3 -c "import tensorrt, cuda.bindings.runtime, psycopg2, cv2, toml, requests; print('deps OK', tensorrt.__version__)"

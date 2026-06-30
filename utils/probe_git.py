@@ -9,8 +9,12 @@ import multiprocessing
 import time
 import psycopg2
 
-# ✅ Use your actual PostgreSQL functions
-from . import posgres_service
+# ✅ Use your actual PostgreSQL functions.
+# db_service is the hardened, env-driven replacement for the (sanitized-away)
+# posgres_service.py — same API (get_user_info / log_attendance / COMPANY_ID),
+# but DB + webhook secrets come from the environment. DB creds are passed to the
+# container by tools/run_company_pipeline.sh.
+from . import db_service as posgres_service
 
 
 
