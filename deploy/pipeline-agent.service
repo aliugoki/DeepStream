@@ -34,6 +34,11 @@ WorkingDirectory=/home/meta/deploy/deepstream
 EnvironmentFile=/home/meta/deploy/attendance-system/backend/.env
 Environment=PYTHONUNBUFFERED=1
 Environment=DASHBOARD_URL=http://localhost:5002
+# Force the local-display detection in run_company_pipeline.sh to OFF (fakesink):
+# this service runs as root and can't reliably reach the user's X session, so
+# nveglglessink would be unreliable. The browser HLS/WebRTC stream does not need
+# the local annotated window. Remove this (and ensure XAUTHORITY) to re-enable it.
+Environment=DISPLAY=
 
 ExecStart=/usr/bin/python3 /home/meta/deploy/deepstream/tools/pipeline_agent.py
 

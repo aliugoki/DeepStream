@@ -48,7 +48,13 @@ from utils.probe_git import pgie_src_filter_probe
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("DeepStream-Enterprise")
 
-NVBUF_MEM_CUDA_UNIFIED = 2  # dGPU; see deepstream-imagedata-multistream sample
+# NvBufSurfaceMemType enum (nvbuf-memory-type): device=2, UNIFIED=3. Unified is
+# CPU+GPU-addressable, which the in-probe np.array(get_nvds_buf_surface(...)) read
+# requires on dGPU — value 2 is device-only memory and segfaults the probe.
+NVBUF_MEM_CUDA_UNIFIED = 3  # dGPU; see deepstream-imagedata-multistream sample
+# The nvv4l2 decoder's cudadec-memtype is a DIFFERENT enum: device=0, pinned=1,
+# unified=2. Keep it separate so we don't reuse the NvBufSurface value (3) here.
+CUDADEC_MEMTYPE_UNIFIED = 2
 
 
 def start_gallery_reloader(path, gallery: Gallery, interval=5):
@@ -144,7 +150,7 @@ def main(cfg):
             is_live = True
         # nvurisrcbin with native RTSP reconnect (see utils/reliability.py).
         sb = create_resilient_source_bin(i, src, gpu_id=gpu_id,
-                                         cudadec_memtype=NVBUF_MEM_CUDA_UNIFIED)
+                                         cudadec_memtype=CUDADEC_MEMTYPE_UNIFIED)
         pipeline.add(sb)
         sb.get_static_pad("src").link(streammux.get_request_pad(f"sink_{i}"))
 
