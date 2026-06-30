@@ -176,9 +176,19 @@ def main(cfg):
 
     # Display branch.
     q_disp = Gst.ElementFactory.make("queue")
+    # Leaky (drop oldest) so a slow display can't build latency or back-pressure
+    # the tee — the RTSP/recognition branches must never stall for the local window.
+    q_disp.set_property("leaky", 2)            # 2 = downstream (drop old buffers)
+    q_disp.set_property("max-size-buffers", 3)
     sink_disp = Gst.ElementFactory.make(
         "nveglglessink" if pcfg.get("display") else "fakesink")
     pipeline.add(q_disp); pipeline.add(sink_disp)
+    if pcfg.get("display"):
+        # Live source + nveglglessink with clock sync floods the log with
+        # "A lot of buffers are being dropped / is_too_late". Render frames as they
+        # arrive instead of dropping for lateness; the local window is best-effort.
+        sink_disp.set_property("sync", False)
+        sink_disp.set_property("qos", False)
     tee.get_request_pad("src_%u").link(q_disp.get_static_pad("sink"))
     q_disp.link(sink_disp)
 
