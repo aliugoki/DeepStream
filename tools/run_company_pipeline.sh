@@ -85,6 +85,22 @@ PY
 chmod 600 "$DB_ENV"
 echo "company_id=$CID folder=$FOLDER rtsp=$((8555+INDEX)) health=$((9108+INDEX))"
 
+# Resolve the gallery source dir. company_image_folder is normally a BARE folder
+# name under the images root, but some rows store an ABSOLUTE path. Prefixing an
+# absolute path with the root yields a nonexistent dir that Docker silently
+# creates EMPTY -> "Loaded gallery with 0 faces" -> nobody is recognized. So use
+# an absolute value verbatim and only prefix bare names.
+IMAGES_ROOT=/home/meta/deploy/test/data/company_images
+case "$FOLDER" in
+  /*) GALLERY_SRC="$FOLDER" ;;
+  *)  GALLERY_SRC="$IMAGES_ROOT/$FOLDER" ;;
+esac
+if [ ! -d "$GALLERY_SRC" ]; then
+  echo "WARNING: gallery dir does not exist: $GALLERY_SRC" >&2
+  echo "         pipeline will load 0 faces -> everyone shows as unknown." >&2
+fi
+echo "gallery: $GALLERY_SRC"
+
 # 2b) GPU compute pre-flight. A wedged GPU (CUDA can't init / allocate) makes the
 #     pipeline segfault on TensorRT init; under an always-restart policy that
 #     becomes a crash loop that re-wedges CUDA for the whole host. Refuse to
@@ -120,7 +136,7 @@ docker run -d --name "deepstream-$USER" --restart on-failure:5 --runtime nvidia 
   --env-file "$DB_ENV" \
   "${DISPLAY_ARGS[@]}" \
   -v "$DS:/workspace" \
-  -v "/home/meta/deploy/test/data/company_images/$FOLDER:/workspace/data/known_faces" \
+  -v "$GALLERY_SRC:/workspace/data/known_faces" \
   -v "$DS/config/companies/$USER.toml:/workspace/config/config_pipeline.toml" \
   -w /workspace "$IMG" \
   bash /workspace/tools/pipeline_entry.sh
