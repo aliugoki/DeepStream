@@ -98,6 +98,10 @@ class EnterpriseRecognizer:
         # Scaled here to muxer-frame pixels (object coords live in that space).
         # Empty/missing -> None == whole frame (attendance triggers anywhere).
         mw, mh = muxer_wh
+        # Landmarks are inverse-letterboxed with THIS resolution (the muxer/frame-
+        # surface size the PGIE ran on and we crop from), not the source camera
+        # resolution -- see _landmarks.
+        self.muxer_wh = muxer_wh
         self.areas = {}
         for idx, s in enumerate(self.sources):
             poly = s.get("detection_area") if isinstance(s, dict) else None
@@ -285,8 +289,7 @@ class EnterpriseRecognizer:
             st['out_count'] += 1
             st['last_global_status'] = {'status': 'OUT', 'timestamp': now}
 
-    @staticmethod
-    def _landmarks(obj, frame_meta):
+    def _landmarks(self, obj, frame_meta):
         """Extract 5 landmarks (frame pixels) from obj_meta.mask_params."""
         try:
             mp = obj.mask_params
@@ -298,9 +301,14 @@ class EnterpriseRecognizer:
             pts, scores = parse_landmarks(np.array(data, copy=True))
             if pts is None:
                 return None, None
-            # PGIE landmarks are in 640x640 net space; map to frame pixels.
-            fw = frame_meta.source_frame_width or 1280
-            fh = frame_meta.source_frame_height or 720
+            # PGIE landmarks are in 640x640 net space, letterboxed from the MUXER
+            # frame (nvstreammux output), which is exactly the frame surface we
+            # crop from. Inverse-letterbox with the muxer size -- NOT
+            # source_frame_width/height, which are the original camera resolution
+            # (e.g. 1920x1080) while the surface is muxer-scaled (e.g. 1280x720).
+            # Using the source size scaled every landmark ~1.5x off, so align_chip
+            # cropped the floor instead of the face -> ~0.04 cosine, nobody matched.
+            fw, fh = self.muxer_wh
             return inverse_letterbox_points(pts, fw, fh), scores
         except Exception:
             return None, None
