@@ -118,6 +118,10 @@ def execute(j):
         rc, log = run(["bash", "tools/run_company_pipeline.sh", u, str(idx)])
     elif act == "stop":
         rc, log = run(["docker", "rm", "-f", f"deepstream-{u}"], timeout=60)
+    elif act == "mediamtx_sync":
+        # Regenerate the MediaMTX paths block (per-company recordDeleteAfter from the
+        # DB). No pipeline touched; MediaMTX hot-reloads the rewritten config file.
+        rc, log = run(["python3", "tools/gen_mediamtx_paths.py"], timeout=60)
     else:
         rc, log = 1, "unknown action"
     report(j["id"], "done" if rc == 0 else "failed", log)

@@ -41,6 +41,15 @@ def main():
                    WHERE company_id=%s AND enabled=TRUE AND rtsp_url IS NOT NULL AND rtsp_url<>''
                    ORDER BY name""", (company_id,))
     cams = cur.fetchall()
+    # Per-company recognition tuning (tolerant of the column not existing yet, e.g.
+    # if the dashboard migration hasn't run — then we keep the template defaults).
+    rec = None
+    try:
+        cur.execute("SELECT rec_threshold, rec_margin, rec_min_votes "
+                    "FROM tenant_settings WHERE company_id=%s", (company_id,))
+        rec = cur.fetchone()
+    except Exception:
+        rec = None
     conn.close()
     if not cams:
         print(f"WARNING: no enabled cameras with an RTSP url for {company_name}. "
@@ -65,6 +74,15 @@ def main():
     # monitor. The launcher sets PIPELINE_DISPLAY=0 when no X server is reachable
     # so the pipeline falls back to fakesink instead of crashing on nveglglessink.
     cfg["pipeline"]["display"] = int(os.environ.get("PIPELINE_DISPLAY", "1"))
+    # Per-company face-recognition tuning from tenant policy (unset -> template
+    # defaults). main_enterprise reads rec_threshold / rec_margin / track_min_votes.
+    if rec:
+        if rec[0] is not None:
+            cfg["pipeline"]["rec_threshold"] = float(rec[0])
+        if rec[1] is not None:
+            cfg["pipeline"]["rec_margin"] = float(rec[1])
+        if rec[2] is not None:
+            cfg["pipeline"]["track_min_votes"] = int(rec[2])
     cfg.setdefault("streammux", {})["batch-size"] = max(len(cams), 1)
 
     # One annotated RTSP mount per camera: /cam0, /cam1, … on this company's
