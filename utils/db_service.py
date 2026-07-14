@@ -20,12 +20,19 @@ import logging
 import traceback
 from datetime import datetime
 from contextlib import contextmanager
+from queue import Empty
 
 import psycopg2
 from psycopg2 import pool as pgpool
 import requests
 
+from .outbox import add as outbox_add, flush as outbox_flush, DBUnavailable
+
 log = logging.getLogger("db_service")
+
+# psycopg2 errors that mean "Postgres is unreachable right now" (retry, don't drop),
+# as opposed to data/logic errors (skip).
+_DB_DOWN = (psycopg2.OperationalError, psycopg2.InterfaceError)
 
 
 # --------------------------------------------------------------------------- #
@@ -65,6 +72,7 @@ WEBHOOK_RETRIES = int(os.getenv("WEBHOOK_RETRIES", "3"))
 POOL_MIN = int(os.getenv("DB_POOL_MIN", "1"))
 POOL_MAX = int(os.getenv("DB_POOL_MAX", "4"))
 THROTTLE_SEC = int(os.getenv("ATTENDANCE_THROTTLE_SEC", "30"))
+OUTBOX_FLUSH_SEC = int(os.getenv("OUTBOX_FLUSH_SEC", "15"))   # retry buffered events every N s
 
 
 def require_secrets():
@@ -200,7 +208,10 @@ def log_attendance(emp_id, company_id, first_name=None, last_name=None,
     if emp_id in _last_processed and (now_ts - _last_processed[emp_id] < THROTTLE_SEC):
         return False
 
-    user = get_user_info(emp_id, company_id)
+    try:
+        user = get_user_info(emp_id, company_id)
+    except _DB_DOWN as e:
+        raise DBUnavailable(str(e))          # buffer to the outbox, retry later
     if not user[0]:
         log.info("event ignored: id %s not in user_data", emp_id)
         return False
@@ -242,21 +253,49 @@ def log_attendance(emp_id, company_id, first_name=None, last_name=None,
         if ok:
             mark_attendance_sent(new_id, resp)
         return True
+    except _DB_DOWN as e:
+        raise DBUnavailable(str(e))          # buffer to the outbox, retry later
     except Exception as e:
         log.error("log_attendance failed: %s\n%s", e, traceback.format_exc())
         return False
 
 
+def _flush_outbox():
+    """Best-effort drain of buffered events (no-op/cheap when the outbox is empty)."""
+    try:
+        outbox_flush(log_attendance)
+    except Exception as e:  # never let a flush hiccup kill the worker
+        log.warning("outbox flush error: %s", e)
+
+
 def attendance_worker(q):
-    """Separate-process consumer of attendance tasks (mirrors legacy worker)."""
+    """Separate-process consumer of attendance tasks.
+
+    Never drops: if Postgres is unavailable the event is buffered to a durable
+    local outbox and replayed automatically once the DB recovers. Also drains any
+    events left over from a previous run (crash recovery) on startup.
+    """
     log.info("[%s] attendance worker started", os.getpid())
+    _flush_outbox()                                   # crash recovery
+    last_flush = time.time()
     while True:
         try:
-            task = q.get()
-            if task is None:
-                log.info("[%s] worker shutting down", os.getpid())
-                break
+            task = q.get(timeout=OUTBOX_FLUSH_SEC)     # wake periodically to retry backlog
+        except Empty:
+            _flush_outbox()
+            last_flush = time.time()
+            continue
+        if task is None:
+            _flush_outbox()
+            log.info("[%s] worker shutting down", os.getpid())
+            break
+        try:
             log_attendance(**task)
+        except DBUnavailable:
+            outbox_add(task)                          # durable buffer — no loss
         except Exception as e:
             log.error("worker error: %s", e)
             traceback.print_exc()
+        if time.time() - last_flush > OUTBOX_FLUSH_SEC:
+            _flush_outbox()                           # drain backlog while streaming
+            last_flush = time.time()
