@@ -122,6 +122,14 @@ def execute(j):
         # Regenerate the MediaMTX paths block (per-company recordDeleteAfter from the
         # DB). No pipeline touched; MediaMTX hot-reloads the rewritten config file.
         rc, log = run(["python3", "tools/gen_mediamtx_paths.py"], timeout=60)
+    elif act == "backfill":
+        # Recover a live-stream gap: fetch the missed window from the NVR and
+        # reprocess it fast, stamped at its recording time (run_backfill.sh).
+        import json as _json
+        p = _json.loads(j.get("payload") or "{}")
+        rc, log = run(["bash", "tools/run_backfill.sh", u, str(p.get("channel", "")),
+                       str(p.get("start", "")), str(p.get("end", "")),
+                       str(p.get("gap_id", ""))], timeout=3600)
     else:
         rc, log = 1, "unknown action"
     report(j["id"], "done" if rc == 0 else "failed", log)

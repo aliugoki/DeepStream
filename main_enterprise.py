@@ -240,6 +240,15 @@ def main(cfg):
     bus = pipeline.get_bus()
     bus.add_signal_watch()
     bus.connect("message", make_resilient_bus_call(loop, health), loop)
+    # BACKFILL: a recorded clip ends -> quit (live RTSP never EOSes; guarded so this
+    # never affects live pipelines).
+    if clip_start is not None:
+        def _backfill_eos(_bus, msg, _loop):
+            if msg.type == Gst.MessageType.EOS:
+                logger.info("BACKFILL: end of clip -> finishing")
+                _loop.quit()
+            return True
+        bus.connect("message::eos", _backfill_eos, loop)
     start_watchdog(health, interval_sec=int(pcfg.get("watchdog_interval_sec", 10)))
 
     pipeline.set_state(Gst.State.PLAYING)

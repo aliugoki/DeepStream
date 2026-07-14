@@ -26,6 +26,8 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("username")
+    ap.add_argument("--backfill-uri", help="reprocess this file:// clip instead of live cameras")
+    ap.add_argument("--clip-start", help="ISO datetime the clip starts (stamps attendance)")
     ap.add_argument("--index", type=int, default=0,
                     help="port offset so multiple companies don't collide (RTSP 8555+N, health 9108+N)")
     args = ap.parse_args()
@@ -124,6 +126,24 @@ def main():
         if area:
             src["detection_area"] = area
         cfg["sources"].append(src)
+
+    # BACKFILL: reprocess a single recorded clip (file source) instead of the live
+    # cameras, stamped at its recording time. Runs unthrottled (NVDEC); to sample
+    # frames for >24x-realtime, raise `interval=` in config_yolo.txt.
+    if args.backfill_uri:
+        cam0 = cfg["sources"][0] if cfg["sources"] else {"type": "entrance"}
+        one = {"id": cam0.get("id", "backfill"), "uri": args.backfill_uri,
+               "type": cam0.get("type", "entrance")}
+        if "detection_area" in cam0:
+            one["detection_area"] = cam0["detection_area"]
+        cfg["sources"] = [one]
+        cfg["pipeline"]["num_sources"] = 1
+        cfg["pipeline"]["muxer_batch_size"] = 1
+        cfg.setdefault("streammux", {})["batch-size"] = 1
+        cfg["streammux"]["live-source"] = 0
+        cfg.setdefault("rtsp_server", {})["enable_rtsp_streaming"] = False
+        if args.clip_start:
+            cfg.setdefault("backfill", {})["clip_start"] = args.clip_start
 
     out_dir = os.path.join(BASE, "config", "companies")
     os.makedirs(out_dir, exist_ok=True)
