@@ -205,9 +205,30 @@ def main(cfg):
     # Recognition probe (after tracker, before tiler -> per-source frames).
     smux = cfg.get("streammux", {})
     muxer_wh = (int(smux.get("width", 1280)), int(smux.get("height", 720)))
+
+    # Anti-spoofing (liveness) — optional; gates attendance on a live face.
+    from utils import antispoof as _antispoof
+    antispoof = (_antispoof.load(
+        pcfg.get("antispoof_model", "/workspace/models/antispoof/2.7_80x80_MiniFASNetV2static.onnx"),
+        min_live=float(pcfg.get("antispoof_min_score", 0.5)))
+        if pcfg.get("antispoof_enabled") else None)
+
+    # Backfill — when replaying NVR footage, stamp attendance with the RECORDING
+    # time (clip_start + frame PTS). backfill.clip_start is an ISO-8601 datetime.
+    bf = cfg.get("backfill", {})
+    clip_start = None
+    if bf.get("clip_start"):
+        from datetime import datetime as _dt
+        try:
+            clip_start = _dt.fromisoformat(str(bf["clip_start"]))
+            logger.info("BACKFILL mode: attendance stamped from clip_start=%s", clip_start)
+        except Exception as e:
+            logger.warning("backfill.clip_start unparseable (%s): %s", bf["clip_start"], e)
+
     recognizer = EnterpriseRecognizer(embedder, gallery, track_mgr,
                                       cfg["sources"], attendance_q, health=health,
-                                      vt_publisher=vt_publisher, muxer_wh=muxer_wh)
+                                      vt_publisher=vt_publisher, muxer_wh=muxer_wh,
+                                      antispoof=antispoof, clip_start=clip_start)
     attach_enterprise_probe(caps_rgba, recognizer)
     pgie.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER,
                                          pgie_src_filter_probe, None)

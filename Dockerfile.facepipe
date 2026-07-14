@@ -11,6 +11,6 @@
 FROM nvcr.io/nvidia/deepstream:7.1-gc-triton-devel
 
 RUN pip install --no-cache-dir \
-        requests redis pyds psycopg2-binary toml opencv-python-headless \
+        requests redis pyds psycopg2-binary toml onnxruntime opencv-python-headless \
         "cuda-python>=12.6,<13" tensorrt==10.3.0 \
     && python3 -c "import tensorrt, cuda.bindings.runtime, psycopg2, cv2, toml, requests; print('deps OK', tensorrt.__version__)"

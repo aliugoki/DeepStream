@@ -203,7 +203,8 @@ def get_user_info(emp_id, company_id):
 
 def log_attendance(emp_id, company_id, first_name=None, last_name=None,
                    attendance_date=None, attendance_time=None, check_type='in',
-                   image_url=None, camera_name="Entrance", image_b64=None):
+                   image_url=None, camera_name="Entrance", image_b64=None,
+                   captured_at=None):
     now_ts = time.time()
     if emp_id in _last_processed and (now_ts - _last_processed[emp_id] < THROTTLE_SEC):
         return False
@@ -217,7 +218,8 @@ def log_attendance(emp_id, company_id, first_name=None, last_name=None,
         return False
     db_first, db_last, _, db_image = user
 
-    now = datetime.now()
+    # BACKFILL: stamp the RECORDING time when replaying NVR footage; else wall-clock.
+    now = captured_at if captured_at is not None else datetime.now()
     date_obj, time_obj = now.date(), now.time()
     try:
         with get_db_connection() as conn:

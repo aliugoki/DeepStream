@@ -26,7 +26,7 @@ set -euo pipefail
 # this is a no-op there and only runs on the bare DeepStream base image.
 if ! python3 -c "import tensorrt, cuda.bindings.runtime" >/dev/null 2>&1; then
     echo "Installing pipeline deps (not baked into this image)..."
-    pip install -q --no-cache-dir requests redis pyds psycopg2-binary toml opencv-python-headless \
+    pip install -q --no-cache-dir requests redis pyds psycopg2-binary toml onnxruntime opencv-python-headless \
         "cuda-python>=12.6,<13" tensorrt==10.3.0
 fi
 exec python3 main_enterprise.py

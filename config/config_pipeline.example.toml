@@ -9,6 +9,20 @@ rec_margin = 0.05              # top1 - top2 margin gate
 known_face_dir = "/workspace/data/known_faces"
 health_port = 9108             # enterprise pipeline health/metrics (:9108/healthz, /metrics)
 
+# --- Anti-spoofing (liveness) — reject printed/screen photos of an employee. ---
+antispoof_enabled = false      # true to gate attendance on a live face
+antispoof_model = "/workspace/models/antispoof/2.7_80x80_MiniFASNetV2static.onnx"
+antispoof_min_score = 0.5      # min "live" probability (0..1) to accept; raise to be stricter
+
+# --- BACKFILL — replay NVR footage after a live outage. When [backfill].clip_start
+# is set, attendance is stamped with the RECORDING time (clip_start + frame PTS)
+# instead of wall-clock, so re-processed video lands at the moment it happened.
+# Point the [[sources]] uri at the clip (file:///workspace/data/backfill/<clip>.mp4)
+# and, for >24x-realtime, raise the PGIE `interval` (skip frames) — a file source
+# is decoded unthrottled (NVDEC) since live-source is off for non-rtsp URIs.
+[backfill]
+clip_start = ""                # e.g. "2026-07-10T08:00:00" — empty = live mode
+
 [streammux]
 gpu_id = 0
 batch-size = 1

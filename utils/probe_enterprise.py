@@ -24,7 +24,7 @@ builds on are independently unit-tested offline.
 """
 import os
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 import numpy as np
 import pyds
@@ -84,7 +84,8 @@ class EnterpriseRecognizer:
 
     def __init__(self, embedder, gallery: Gallery, track_mgr: TrackIdentityManager,
                  sources, attendance_queue, save_unknown_dir=None, health=None,
-                 vt_publisher=None, muxer_wh=(1280, 720)):
+                 vt_publisher=None, muxer_wh=(1280, 720), antispoof=None,
+                 clip_start=None):
         self.embedder = embedder
         self.gallery = gallery
         self.tracks = track_mgr
@@ -93,6 +94,12 @@ class EnterpriseRecognizer:
         self.save_unknown_dir = save_unknown_dir
         self.health = health
         self.vt = vt_publisher  # optional VisionTrack identity publisher
+        self.antispoof = antispoof     # optional liveness gate (None = disabled)
+        self._live = {}                # object_id -> latest live_prob
+        # BACKFILL: when set, attendance is stamped with the RECORDING time
+        # (clip_start + frame PTS), not wall-clock — so re-processed NVR footage
+        # lands at the moment it actually happened. None => live (use now()).
+        self.clip_start = clip_start
         # Per-camera detection zones. Each source may carry `detection_area`: a
         # polygon of [x, y] points normalized to 0..1 (drawn in the dashboard).
         # Scaled here to muxer-frame pixels (object coords live in that space).
@@ -143,6 +150,7 @@ class EnterpriseRecognizer:
             'last_global_status': {'status': 'Standby', 'timestamp': datetime.now()}})
 
         now, today = datetime.now(), date.today()
+        captured_at = self._captured_at(frame_meta)   # recording time (backfill) or None (live)
         if today != st['last_reset_date']:
             st.update(in_count=0, out_count=0, last_reset_date=today,
                       last_global_status={'status': 'Standby', 'timestamp': now})
@@ -167,6 +175,11 @@ class EnterpriseRecognizer:
                         if frame_bgr is not None:
                             chips.append(align_chip(frame_bgr, pts))
                             pending.append(obj)
+                            if self.antispoof is not None:
+                                r = obj.rect_params
+                                _, prob = self.antispoof.score(
+                                    frame_bgr, (r.left, r.top, r.width, r.height))
+                                self._live[obj.object_id] = prob
             l_obj = l_obj.next if hasattr(l_obj, 'next') else None
 
         # One batched embedding call per frame for all pending faces.
@@ -183,7 +196,7 @@ class EnterpriseRecognizer:
 
             self._handle_object(obj, frame_meta, batch_meta, now, today,
                                  camera_name, camera_type, st, committed, frame_bgr,
-                                 source_id)
+                                 source_id, captured_at)
 
         elapsed = (now - st['last_global_status']['timestamp']).total_seconds()
         if elapsed > GLOBAL_STATUS_DISPLAY_COOLDOWN_SECONDS:
@@ -247,9 +260,19 @@ class EnterpriseRecognizer:
         except Exception:
             return None
 
+    def _captured_at(self, frame_meta):
+        """Real capture time of this frame for BACKFILL: clip_start + frame PTS.
+        None in live mode (attendance then uses wall-clock)."""
+        if self.clip_start is None:
+            return None
+        try:
+            return self.clip_start + timedelta(seconds=frame_meta.buf_pts / 1e9)
+        except Exception:
+            return self.clip_start
+
     def _handle_object(self, obj, frame_meta, batch_meta, now, today,
                        camera_name, camera_type, st, committed_id, frame_bgr=None,
-                       source_id=0):
+                       source_id=0, captured_at=None):
         label = "Unknown"
         direction = check_line_crossing(obj, obj.object_id, now, frame_meta, batch_meta, label)
 
@@ -263,12 +286,18 @@ class EnterpriseRecognizer:
                     person_name = f"{first} {last}".strip()
                     label = f"{first} {last} (Emp ID: {db_emp})"
                     check_type = {'entrance': 'in', 'exit': 'out'}.get(camera_type)
-                    if check_type and hasattr(self.attendance_queue, 'put'):
+                    # Anti-spoof gate: a printed/screen photo of an employee must
+                    # NOT mark attendance. Flag it and skip the event; fail-open
+                    # (live_prob defaults to 1.0) when the model is disabled.
+                    spoof = (self.antispoof is not None
+                             and self._live.get(obj.object_id, 1.0) < self.antispoof.min_live)
+                    if spoof:
+                        label = f"{person_name} (SPOOF?)"
+                    if check_type and not spoof and hasattr(self.attendance_queue, 'put'):
                         self.attendance_queue.put({
                             "company_id": COMPANY_ID, "emp_id": emp_id,
                             "first_name": first, "last_name": last, "image_url": image,
-                            "attendance_date": today.strftime("%d-%m-%Y"),
-                            "attendance_time": now.strftime("%H:%M:%S"),
+                            "captured_at": captured_at,   # recording time (backfill) or None
                             "check_type": check_type, "camera_name": camera_name,
                             "image_b64": self._snapshot_b64(frame_bgr, obj)})
                 else:
