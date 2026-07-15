@@ -70,16 +70,20 @@ case "$FOLDER" in /*) GALLERY_SRC="$FOLDER" ;; *) GALLERY_SRC="$IMAGES_ROOT/$FOL
 echo ">> backfill upload $FILE (clip_start=$CLIP_START)"
 python3 "$DS/tools/gen_company_config.py" "$USER" --index "$IDX" \
     --backfill-uri "file:///workspace/data/upload_clip$EXT" --clip-start "$CLIP_START"
-docker run --rm --runtime nvidia --gpus all --network host \
-  -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
-  -e COMPANY_ID="$CID" -e WEBHOOK_TOKEN="$APIKEY" \
-  -e WEBHOOK_URL="http://localhost:5002/api/attendance/entry" -e PIPELINE_DISPLAY=0 \
-  --env-file "$DB_ENV" \
-  -v "$DS:/workspace" \
-  -v "$GALLERY_SRC:/workspace/data/known_faces" \
-  -v "$FILE:/workspace/data/upload_clip$EXT:ro" \
-  -v "$DS/config/companies/$USER.toml:/workspace/config/config_pipeline.toml" \
-  -w /workspace "$IMG" bash /workspace/tools/pipeline_entry.sh \
-  || echo "  segment run returned nonzero"
-_set_gap done
+if docker run --rm --runtime nvidia --gpus all --network host \
+    -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
+    -e COMPANY_ID="$CID" -e WEBHOOK_TOKEN="$APIKEY" \
+    -e WEBHOOK_URL="http://localhost:5002/api/attendance/entry" -e PIPELINE_DISPLAY=0 \
+    --env-file "$DB_ENV" \
+    -v "$DS:/workspace" \
+    -v "$GALLERY_SRC:/workspace/data/known_faces" \
+    -v "$FILE:/workspace/data/upload_clip$EXT:ro" \
+    -v "$DS/config/companies/$USER.toml:/workspace/config/config_pipeline.toml" \
+    -w /workspace "$IMG" bash /workspace/tools/pipeline_entry.sh; then
+  _set_gap done
+else
+  echo "  run returned nonzero"; _set_gap failed
+fi
+# One-shot upload: drop the clip so captures/backfill_uploads doesn't grow unbounded.
+rm -f "$FILE"
 echo "backfill upload complete: $USER file=$(basename "$FILE") gap=$GAP"
