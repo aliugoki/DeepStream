@@ -123,13 +123,20 @@ def execute(j):
         # DB). No pipeline touched; MediaMTX hot-reloads the rewritten config file.
         rc, log = run(["python3", "tools/gen_mediamtx_paths.py"], timeout=60)
     elif act == "backfill":
-        # Recover a live-stream gap: fetch the missed window from the NVR and
-        # reprocess it fast, stamped at its recording time (run_backfill.sh).
         import json as _json
         p = _json.loads(j.get("payload") or "{}")
-        rc, log = run(["bash", "tools/run_backfill.sh", u, str(p.get("channel", "")),
-                       str(p.get("start", "")), str(p.get("end", "")),
-                       str(p.get("gap_id", ""))], timeout=3600)
+        if p.get("upload"):
+            # Operator-uploaded clip: skip the NVR fetch and reprocess the local
+            # file fast, stamped from clip_start (run_backfill_file.sh).
+            rc, log = run(["bash", "tools/run_backfill_file.sh", u,
+                           str(p.get("filename", "")), str(p.get("clip_start", "")),
+                           str(p.get("gap_id", ""))], timeout=3600)
+        else:
+            # Recover a live-stream gap: fetch the missed window from the NVR and
+            # reprocess it fast, stamped at its recording time (run_backfill.sh).
+            rc, log = run(["bash", "tools/run_backfill.sh", u, str(p.get("channel", "")),
+                           str(p.get("start", "")), str(p.get("end", "")),
+                           str(p.get("gap_id", ""))], timeout=3600)
     else:
         rc, log = 1, "unknown action"
     report(j["id"], "done" if rc == 0 else "failed", log)
