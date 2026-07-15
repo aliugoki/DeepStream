@@ -69,22 +69,25 @@ fi
 echo "fetched ${#SEGS[@]} segment(s) for $USER ch$CH"
 
 # 3) Reprocess each segment (single-shot pipeline over the file, quits at EOS).
+# Track failures so the gap isn't reported "done" when a run actually crashed.
+FAILED=0
 for line in "${SEGS[@]}"; do
   path="${line%%$'\t'*}"; rest="${line#*$'\t'}"; cstart="${rest%%$'\t'*}"
-  [ -f "$path" ] || { echo "skip missing $path"; continue; }
+  [ -f "$path" ] || { echo "skip missing $path"; FAILED=1; continue; }
   echo ">> backfill $path (clip_start=$cstart)"
   python3 "$DS/tools/gen_company_config.py" "$USER" --index "$IDX" \
       --backfill-uri "file://$path" --clip-start "$cstart"
-  docker run --rm --runtime nvidia --gpus all --network host \
-    -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
-    -e COMPANY_ID="$CID" -e WEBHOOK_TOKEN="$APIKEY" \
-    -e WEBHOOK_URL="http://localhost:5002/api/attendance/entry" -e PIPELINE_DISPLAY=0 \
-    --env-file "$DB_ENV" \
-    -v "$DS:/workspace" \
-    -v "$GALLERY_SRC:/workspace/data/known_faces" \
-    -v "$DS/config/companies/$USER.toml:/workspace/config/config_pipeline.toml" \
-    -w /workspace "$IMG" bash /workspace/tools/pipeline_entry.sh \
-    || echo "  segment run returned nonzero"
+  if ! docker run --rm --runtime nvidia --gpus all --network host \
+      -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
+      -e COMPANY_ID="$CID" -e WEBHOOK_TOKEN="$APIKEY" \
+      -e WEBHOOK_URL="http://localhost:5002/api/attendance/entry" -e PIPELINE_DISPLAY=0 \
+      --env-file "$DB_ENV" \
+      -v "$DS:/workspace" \
+      -v "$GALLERY_SRC:/workspace/data/known_faces" \
+      -v "$DS/config/companies/$USER.toml:/workspace/config/config_pipeline.toml" \
+      -w /workspace "$IMG" bash /workspace/tools/pipeline_entry.sh; then
+    echo "  segment run returned nonzero"; FAILED=1
+  fi
 done
-_set_gap done
-echo "backfill complete: $USER ch$CH gap=$GAP"
+if [ "$FAILED" -eq 1 ]; then _set_gap failed; else _set_gap done; fi
+echo "backfill complete: $USER ch$CH gap=$GAP (failed=$FAILED)"
