@@ -71,7 +71,11 @@ class VisionTrackPublisher:
         if not m:
             return
         camera_id, tenant_id = m.get("camera_id"), m.get("tenant_id")
-        if not camera_id or not tenant_id:
+        # Multi-tenant: prefer the company_id stream key (FaceTrack has its own
+        # company_id; VisionTrack routes vt:face:identities:<company_id> to the
+        # mapped tenant). Falls back to tenant_id for single-tenant setups.
+        stream_key = m.get("company_id") or tenant_id
+        if not camera_id or not stream_key:
             return
 
         now = self._now()
@@ -96,7 +100,7 @@ class VisionTrackPublisher:
                                   else int(now * 1000)),
         }
         try:
-            self._redis.xadd(f"{self.stream_prefix}:{tenant_id}", fields,
+            self._redis.xadd(f"{self.stream_prefix}:{stream_key}", fields,
                              maxlen=self.maxlen, approximate=True)
             self._last_pub[key] = now
         except Exception as e:
@@ -117,13 +121,17 @@ def from_config(cfg):
         [[visiontrack.cameras]]
         source_id = 0
         camera_id = "<visiontrack camera uuid>"
-        tenant_id = "<visiontrack tenant uuid>"
+        # Multi-tenant: set company_id (this company's id) so VisionTrack routes to
+        # the right tenant. For single-tenant, set tenant_id instead.
+        company_id = "<company id>"
+        # tenant_id = "<visiontrack tenant uuid>"
     """
     vt = cfg.get("visiontrack") if isinstance(cfg, dict) else None
     if not vt or not vt.get("enabled"):
         return None
     source_map = {int(c["source_id"]): {"camera_id": c.get("camera_id"),
-                                        "tenant_id": c.get("tenant_id")}
+                                        "tenant_id": c.get("tenant_id"),
+                                        "company_id": c.get("company_id")}
                   for c in vt.get("cameras", []) if "source_id" in c}
     if not source_map:
         log.warning("[visiontrack] enabled but no cameras mapped; publisher off.")
